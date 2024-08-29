@@ -1,0 +1,25 @@
+services:
+  social_network:
+    container_name: social_network
+    image: ReDestroyDeR/social-network
+    build:
+      dockerfile: "./Dockerfile"
+    ports:
+      - "8080:8080"
+    networks:
+      - postgres
+
+  postgres:
+    container_name: postgres_container
+    image: postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      PGDATA: /data/postgres
+    volumes:
+      - postgres:/data/postgres
+    ports:
+      - "5432:5432"
+    networks:
+      - postgres
+    restart: unless-stopped

@@ -1,4 +1,4 @@
-use crate::domain::user::{User, Interest};
+use crate::domain::user::{Interest, User};
 use async_trait::async_trait;
 use log::warn;
 use sqlx::{Database, Encode, Error, Postgres, Transaction};
@@ -97,11 +97,9 @@ impl UserRepository<Postgres> for PgUserRepository {
                 .push_bind(interest.description);
         });
 
-        builder
-            .build()
-            .execute(&mut **tx)
-            .await
-            .tap_err(|err| warn!(id:display = &user.id, err:err = *err; "Failed to save user interests"))?;
+        builder.build().execute(&mut **tx).await.tap_err(
+            |err| warn!(id:display = &user.id, err:err = *err; "Failed to save user interests"),
+        )?;
 
         Ok(())
     }

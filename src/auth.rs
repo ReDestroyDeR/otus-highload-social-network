@@ -3,8 +3,8 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::{Database, Error as SQLXError, Transaction};
 use thiserror::Error;
-use warp::{reply, Reply};
 use warp::http::StatusCode;
+use warp::{reply, Reply};
 
 use crate::domain::protocol::ToReply;
 

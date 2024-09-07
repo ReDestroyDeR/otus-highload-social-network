@@ -70,9 +70,9 @@ pub(crate) mod user {
     impl From<String> for Gender {
         fn from(value: String) -> Self {
             match value.as_str() {
-                "Male"   => Gender::Male,
+                "Male" => Gender::Male,
                 "Female" => Gender::Female,
-                _        => Unknown
+                _ => Unknown,
             }
         }
     }
@@ -80,9 +80,9 @@ pub(crate) mod user {
     impl Into<String> for &Gender {
         fn into(self) -> String {
             match self {
-                Gender::Male   => "Male".to_owned(),
+                Gender::Male => "Male".to_owned(),
                 Gender::Female => "Female".to_owned(),
-                _              => "Unknown".to_owned()
+                _ => "Unknown".to_owned(),
             }
         }
     }

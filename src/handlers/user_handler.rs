@@ -1,7 +1,7 @@
 use log::error;
 use std::sync::Arc;
 
-use crate::auth::IDPError::{AuthenticationError};
+use crate::auth::IDPError::AuthenticationError;
 use crate::auth::{IDPContext, IDPError};
 use crate::domain::protocol::ToResponse;
 use sqlx::{Database, Pool};

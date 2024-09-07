@@ -3,9 +3,6 @@ name = "otus_highload_social_network_1"
 version = "0.1.0"
 edition = "2021"
 
-[rustc]
-DATABASE_URL="postgres://postgres:postgres@localhost:5432/postgres"
-
 [dependencies]
 # HTTP
 warp = "0.3.7"

@@ -3,18 +3,46 @@ name = "otus_highload_social_network_1"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[rustc]
+DATABASE_URL="postgres://postgres:postgres@localhost:5432/postgres"
 
 [dependencies]
+# HTTP
 warp = "0.3.7"
+
+# Async Runtime
 tokio = { version = "1.38.0", features = ["rt", "rt-multi-thread", "macros"] }
 tokio-macros = "2.3.0"
-sqlx = { version = "0.7.4" }
+
+# DB
+sqlx = { version = "0.8.1", features = ["postgres", "uuid", "chrono"] }
+sqlx-cli = { version = "0.8.1", features = ["postgres"] }
+refinery = { version = "0.8.14", features = ["postgres", "tokio-postgres"]}
+barrel = { version = "0.7.0", features = ["pg"]}
+
+# Config
 confique = { version = "0.2.5", features = ["serde_yaml"] }
 confique-macro = "0.0.9"
+
+# SerDe
 serde = "1.0.203"
 serde_json = "1.0.120"
+
+# Logging
 tracing = { version =  "0.1.40" }
-log = { version =  "0.4.22", features = ["kv", "kv_serde"] }
+log = { version =  "0.4.22", features = ["kv", "kv_serde", "kv_std"] }
 structured-logger = "1.0.3"
+
+# Syntax Extensions
 tap = "1.0.1"
+
+# Security
+# some encryption...
+
+# Data Types
+uuid = { version = "1.10.0" , features = ["serde", "fast-rng", "v4"]}
+chrono = { version = "0.4.38", features = ["serde"] }
+
+# Error Handling
+thiserror = "1.0.63"
+async-trait = "0.1.81"

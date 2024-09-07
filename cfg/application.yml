@@ -1,5 +1,5 @@
 logger_config:
-  level: "TRACE"
+  level: "INFO"
 
 pg_config:
   host: "localhost"

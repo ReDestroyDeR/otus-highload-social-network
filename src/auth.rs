@@ -103,7 +103,7 @@ where
     async fn authenticate(
         &self,
         tx: &mut Transaction<'_, DB>,
-        credentials: &Credentials
+        credentials: &Credentials,
     ) -> Result<Session, IDPError>;
     async fn add_user(
         &self,
@@ -235,7 +235,7 @@ impl<DB: Database> IDPContext<DB> for PgIDPContext<DB> {
     async fn authenticate(
         &self,
         tx: &mut Transaction<'_, DB>,
-        credentials: &Credentials
+        credentials: &Credentials,
     ) -> Result<Session, IDPError> {
         let db_credentials = self
             .auth_repo

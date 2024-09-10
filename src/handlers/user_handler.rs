@@ -10,7 +10,9 @@ use uuid::Uuid;
 use warp::filters::method;
 use warp::{body, Filter, Rejection, Reply};
 
-use crate::domain::user::{AuthenticationRequest, AuthenticationResponse, Credentials, RegistrationRequest, User};
+use crate::domain::user::{
+    AuthenticationRequest, AuthenticationResponse, Credentials, RegistrationRequest, User,
+};
 use crate::handlers::RestHandler;
 use crate::repo::user_repository::UserRepository;
 
@@ -26,10 +28,7 @@ impl<DB: Database> UserHandler<DB>
 where
     Self: Send + Sync,
 {
-    async fn login(
-        &self,
-        credentials: &Credentials
-    ) -> Result<AuthenticationResponse, IDPError> {
+    async fn login(&self, credentials: &Credentials) -> Result<AuthenticationResponse, IDPError> {
         let mut tx = self
             .pool
             .begin()

@@ -2,7 +2,7 @@ use log::error;
 use std::sync::Arc;
 
 use crate::auth::IDPError::AuthenticationError;
-use crate::auth::{IDPContext, IDPError};
+use crate::auth::{AuthenticationFilter, IDPContext, IDPError};
 use crate::domain::protocol::ToResponse;
 use sqlx::{Database, Pool};
 use tap::TapFallible;
@@ -19,6 +19,7 @@ pub struct UserHandler<DB: Database> {
     pub pool: Arc<Pool<DB>>,
     pub repository: Arc<dyn UserRepository<DB>>,
     pub idp_context: Arc<dyn IDPContext<DB>>,
+    pub authentication_filter: Arc<AuthenticationFilter<DB>>,
 }
 
 impl<DB: Database> UserHandler<DB>
@@ -54,9 +55,6 @@ where
             .begin()
             .await
             .map_err(|err| IDPError::RegistrationError(err))?;
-        self.idp_context
-            .add_user(&mut tx, &credentials.login, &credentials.password)
-            .await?;
 
         let user = User {
             id: Uuid::new_v4(),
@@ -67,11 +65,15 @@ where
             interests: request.interests,
             city: request.city,
         };
+
         let _ = self
             .repository
             .save(&mut tx, user.clone())
             .await
             .map_err(|err| IDPError::RegistrationError(err))?;
+        self.idp_context
+            .add_user(&mut tx, &credentials.login, &credentials.password, &user)
+            .await?;
 
         tx.commit()
             .await
@@ -126,10 +128,12 @@ impl<DB: Database> RestHandler for Arc<UserHandler<DB>> {
 
         let get = {
             let handler = self.clone();
-            warp::path!("user" / "get" / Uuid).and_then(move |user_id| {
-                let inner_handler = handler.clone();
-                async move { inner_handler.get(user_id).await.into_response() }
-            })
+            warp::path!("user" / "get" / Uuid)
+                .and(handler.authentication_filter.clone().with_session())
+                .and_then(move |user_id, _| {
+                    let inner_handler = handler.clone();
+                    async move { inner_handler.get(user_id).await.into_response() }
+                })
         };
 
         login.or(register).or(get)

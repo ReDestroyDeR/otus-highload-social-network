@@ -7,3 +7,7 @@ pg_config:
   database: "postgres"
   user: "postgres"
   password: "postgres"
+
+auth_config:
+  session_lifetime_seconds: 60
+  invalid_sessions_cache_limit: 100

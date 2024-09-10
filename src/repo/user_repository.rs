@@ -1,7 +1,7 @@
 use crate::domain::user::{Interest, User};
 use async_trait::async_trait;
 use log::warn;
-use sqlx::{Database, Encode, Error, Postgres, Transaction};
+use sqlx::{Database, Error, Postgres, Transaction};
 use tap::TapFallible;
 use uuid::Uuid;
 

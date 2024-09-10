@@ -11,16 +11,20 @@ use sqlx::{PgPool, Postgres};
 use structured_logger::async_json::new_writer;
 use structured_logger::Builder;
 use tap::TapFallible;
+use warp::Filter;
 
-use crate::auth::{IDPContext, MockIDPContext};
+use crate::auth::{AuthenticationFilter, IDPContext, PgIDPContext};
 use crate::config::{ApplicationConfig, LoggerConfig, PgConfig};
 use crate::handlers::user_handler::UserHandler;
 use crate::handlers::RestHandler;
+use crate::repo::auth_repository::{AuthRepository, PgAuthRepository};
+use crate::repo::session_repository::{PgSessionRepository, SessionRepository};
 use crate::repo::user_repository::{PgUserRepository, UserRepository};
 
 mod auth;
 mod config;
 pub(crate) mod domain;
+mod extensions;
 mod handlers;
 pub(crate) mod repo;
 
@@ -49,15 +53,28 @@ async fn main() {
     let _ = migrate(&config.pg_config).await;
     let pool: Arc<PgPool> = connect_to_db(&config.pg_config).await;
 
-    let idp_context: Arc<dyn IDPContext<Postgres>> = Arc::new(MockIDPContext);
+    let session_repository: Arc<dyn SessionRepository<Postgres>> = Arc::new(PgSessionRepository);
+    let auth_repository: Arc<dyn AuthRepository<Postgres>> = Arc::new(PgAuthRepository);
+    let idp_context: Arc<dyn IDPContext<Postgres>> = Arc::new(PgIDPContext::new(
+        session_repository,
+        auth_repository,
+        &config.auth_config,
+    ));
+    let auth_filter: Arc<AuthenticationFilter<Postgres>> = Arc::new(AuthenticationFilter {
+        pool: pool.clone(),
+        idp: idp_context.clone(),
+    });
     let user_repository: Arc<dyn UserRepository<Postgres>> = Arc::new(PgUserRepository);
     let user_handler = Arc::new(UserHandler {
-        pool,
-        idp_context,
+        pool: pool.clone(),
+        authentication_filter: auth_filter.clone(),
+        idp_context: idp_context.clone(),
         repository: user_repository,
     });
 
-    let routes = user_handler.routes();
+    let routes = user_handler
+        .routes()
+        .recover(handlers::rejection_handler::handle_rejections);
 
     warp::serve(routes).run(([127, 0, 0, 1], 8080)).await;
 }

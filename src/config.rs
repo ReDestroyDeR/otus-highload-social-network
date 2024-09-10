@@ -6,6 +6,8 @@ pub struct ApplicationConfig {
     pub logger_config: LoggerConfig,
     #[config(nested)]
     pub pg_config: PgConfig,
+    #[config(nested)]
+    pub auth_config: AuthConfig,
 }
 
 #[derive(Config)]
@@ -23,21 +25,8 @@ pub struct PgConfig {
     pub password: String,
 }
 
-impl PgConfig {
-    pub fn connection_url(&self) -> String {
-        format!(
-            "postgres://{user}:{pass}@{host}:{port}/{db}{schema}",
-            user = self.user,
-            pass = self.password,
-            host = self.host,
-            port = self.port,
-            db = self.database,
-            schema = self
-                .schema
-                .iter()
-                .map(|schema| format!("?currentSchema={schema}"))
-                .next()
-                .unwrap_or("".to_owned())
-        )
-    }
+#[derive(Config)]
+pub struct AuthConfig {
+    pub session_lifetime_seconds: u32,
+    pub invalid_sessions_cache_limit: usize,
 }

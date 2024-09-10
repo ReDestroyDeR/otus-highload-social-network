@@ -1,4 +1,5 @@
 pub(crate) mod protocol {
+    use warp::reject::Reject;
     use warp::{reject, Rejection, Reply};
 
     pub trait ToReply {
@@ -21,11 +22,11 @@ pub(crate) mod protocol {
     impl<T, E> ToResponse for Result<T, E>
     where
         T: ToReply,
-        E: ToReply,
+        E: ToReply + Reject,
     {
         fn into_response(self) -> Result<Box<dyn Reply>, Rejection> {
             match self {
-                Err(error) => Ok(Box::new(error.into_reply())),
+                Err(error) => Err(reject::custom(error)),
                 Ok(underlying) => Ok(Box::new(underlying.into_reply())),
             }
         }

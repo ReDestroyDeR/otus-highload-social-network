@@ -1,5 +1,6 @@
 use warp::Filter;
 
+pub(crate) mod rejection_handler;
 pub(crate) mod user_handler;
 
 pub trait RestHandler

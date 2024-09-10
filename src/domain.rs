@@ -123,6 +123,11 @@ pub(crate) mod user {
     }
 
     #[derive(Deserialize)]
+    pub struct AuthenticationRequest {
+        pub credentials: Credentials,
+    }
+
+    #[derive(Deserialize)]
     pub struct Credentials {
         pub login: String,
         pub password: String,

@@ -103,8 +103,7 @@ where
     async fn authenticate(
         &self,
         tx: &mut Transaction<'_, DB>,
-        login: &str,
-        password: &str,
+        credentials: &Credentials
     ) -> Result<Session, IDPError>;
     async fn add_user(
         &self,
@@ -236,16 +235,15 @@ impl<DB: Database> IDPContext<DB> for PgIDPContext<DB> {
     async fn authenticate(
         &self,
         tx: &mut Transaction<'_, DB>,
-        login: &str,
-        password: &str,
+        credentials: &Credentials
     ) -> Result<Session, IDPError> {
-        let credentials = self
+        let db_credentials = self
             .auth_repo
-            .find(tx, login)
+            .find(tx, &credentials.login)
             .await
             .ok_or(IDPError::AuthenticationFailed)?;
 
-        if bcrypt::verify(password, &credentials.password)
+        if bcrypt::verify(&credentials.password, &db_credentials.password)
             .map_err(|err| IDPError::CryptoError(err))?
         {
             let session = Session {
@@ -258,7 +256,7 @@ impl<DB: Database> IDPContext<DB> for PgIDPContext<DB> {
                 .await
                 .map_err(|err| IDPError::AuthenticationError(err))?;
             self.cache_session(session.session_id.clone(), session.to_cached());
-            info!(login = login; "Authenticated user and generated new Session");
+            info!(login = credentials.login; "Authenticated user and generated new Session");
 
             Ok(session)
         } else {

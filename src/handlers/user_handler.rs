@@ -1,4 +1,4 @@
-use log::error;
+use log::{error, info};
 use std::sync::Arc;
 
 use crate::auth::IDPError::AuthenticationError;
@@ -10,7 +10,7 @@ use uuid::Uuid;
 use warp::filters::method;
 use warp::{body, Filter, Rejection, Reply};
 
-use crate::domain::user::{AuthenticationResponse, RegistrationRequest, User};
+use crate::domain::user::{AuthenticationRequest, AuthenticationResponse, Credentials, RegistrationRequest, User};
 use crate::handlers::RestHandler;
 use crate::repo::user_repository::UserRepository;
 
@@ -28,8 +28,7 @@ where
 {
     async fn login(
         &self,
-        username: &str,
-        password: &str,
+        credentials: &Credentials
     ) -> Result<AuthenticationResponse, IDPError> {
         let mut tx = self
             .pool
@@ -38,7 +37,7 @@ where
             .map_err(|err| AuthenticationError(err))?;
         let response = self
             .idp_context
-            .authenticate(&mut tx, username, password)
+            .authenticate(&mut tx, &credentials)
             .await
             .map(|session| AuthenticationResponse {
                 session_id: session.session_id,
@@ -79,6 +78,8 @@ where
             .await
             .map_err(|err| IDPError::RegistrationError(err))?;
 
+        info!(user_id:display = user.id.clone(), login = credentials.login.clone(); "Registered new user");
+
         Ok(user)
     }
 
@@ -97,13 +98,14 @@ impl<DB: Database> RestHandler for Arc<UserHandler<DB>> {
     fn routes(self) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
         let login = {
             let handler = self.clone();
-            warp::path!("login" / String / String)
+            warp::path!("login")
                 .and(method::post())
-                .and_then(move |username: String, password: String| {
+                .and(body::json())
+                .and_then(move |authentication: AuthenticationRequest| {
                     let inner_handler = handler.clone();
                     async move {
                         inner_handler
-                            .login(&username, &password)
+                            .login(&authentication.credentials)
                             .await
                             .into_response()
                     }

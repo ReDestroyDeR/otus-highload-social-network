@@ -1,32 +1,65 @@
 services:
   social_network:
     container_name: social_network
-    image: ReDestroyDeR/social-network
+    image: redestroyder/social-network
+    depends_on:
+      - postgres
     build:
+      context: .
       dockerfile: "./Dockerfile"
+      secrets:
+        - pg_user
+        - pg_pass
+      args:
+        - PG_DB=postgres
+        - PG_HOST=localhost
+        - PG_PORT=5432
+      network: host # buildx (docker desktop) на MacOS не поддерживает сети Docker
     ports:
       - "8080:8080"
     networks:
       - postgres
+    tmpfs:
+      - /run/secrets
+    environment:
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_DB: postgres
+      PG_USER_FILE: /run/secrets/pg_user
+      PG_PASS_FILE: /run/secrets/pg_pass
+    secrets:
+      - pg_user
+      - pg_pass
 
   postgres:
     container_name: postgres_container
     image: postgres
     environment:
-      POSTGRES_USER: "postgres"
-      POSTGRES_PASSWORD: "postgres"
+      POSTGRES_USER: /run/secrets/pg_user
+      POSTGRES_PASSWORD: /run/secrets/pg_pass
       POSTGRES_DB: "postgres"
       PGDATA: /data/postgres
     volumes:
       - postgres:/data/postgres
+    expose:
+      - "5432"
     ports:
       - "5432:5432"
     networks:
       - postgres
     restart: unless-stopped
+    secrets:
+      - pg_user
+      - pg_pass
 
 networks:
   postgres:
 
 volumes:
   postgres:
+
+secrets:
+  pg_user:
+    file: secrets/pg_user.txt
+  pg_pass:
+    file: secrets/pg_pass.txt

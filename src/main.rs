@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::env;
+use std::net::Ipv4Addr;
 use std::sync::Arc;
 
 use confique::Config;
@@ -41,12 +42,15 @@ async fn main() {
         .get(CONFIG_ENV)
         .map(|file_name| file_name.as_str())
         .unwrap_or(DEFAULT_CONFIG_PATH);
-
     let config: ApplicationConfig =
-        ApplicationConfig::from_file(config_file_path).expect(&format!(
-            "Failed to load application config from {}",
-            config_file_path
-        ));
+        ApplicationConfig::builder()
+            .file(config_file_path)
+            .env()
+            .load()
+            .expect(&format!(
+                "Failed to load application config from {}",
+                config_file_path
+            ));
 
     initialize_logger(config.logger_config);
 
@@ -76,7 +80,7 @@ async fn main() {
         .routes()
         .recover(handlers::rejection_handler::handle_rejections);
 
-    warp::serve(routes).run(([127, 0, 0, 1], 8080)).await;
+    warp::serve(routes).run((Ipv4Addr::UNSPECIFIED, 8080)).await;
 }
 
 async fn connect_to_db(config: &PgConfig) -> Arc<PgPool> {

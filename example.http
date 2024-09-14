@@ -1,0 +1,46 @@
+### Register
+POST http://localhost:8080/user/register
+Content-Type: application/json
+
+{
+  "credentials": {
+    "login": "sir_john",
+    "password": "123456"
+  },
+  "first_name": "John",
+  "last_name": "Doe",
+  "birth_date": "1980-02-12",
+  "gender": "Male",
+  "interests": [
+    {
+      "name": "Books",
+      "description": "I enjoy reading books everyday!"
+    },
+    {
+      "name": "Music",
+      "description": "I like different kinds of music"
+    },
+    {
+      "name": "Travel",
+      "description": "I fancy travel to different locations when I've got free time"
+    }
+  ],
+  "city": "N"
+}
+
+### Login
+POST http://localhost:8080/login
+Content-Type: application/json
+
+{
+  "credentials": {
+    "login": "sir_john",
+    "password": "123456"
+  }
+}
+
+### Get
+@user_id = Please specify user id that was generated during registration
+@session_id = Please specify session id provided after login
+GET http://localhost:8080/user/get/{{user_id}}
+Authorization: session-id {{session_id}}

@@ -1,0 +1,6 @@
+logger_config:
+  level: "INFO"
+
+auth_config:
+  session_lifetime_seconds: 60
+  invalid_sessions_cache_limit: 100

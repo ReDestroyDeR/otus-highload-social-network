@@ -12,10 +12,8 @@ tokio = { version = "1.38.0", features = ["rt", "rt-multi-thread", "macros"] }
 tokio-macros = "2.3.0"
 
 # DB
-sqlx = { version = "0.8.1", features = ["postgres", "uuid", "chrono"] }
-sqlx-cli = { version = "0.8.1", features = ["postgres"] }
-refinery = { version = "0.8.14", features = ["postgres", "tokio-postgres"]}
-barrel = { version = "0.7.0", features = ["pg"]}
+sqlx = { version = "0.8.2", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros", "sqlx-macros"], default-features = false }
+refinery = { version = "0.8.14", features = ["postgres", "tokio-postgres"], default-features = false }
 
 # Config
 confique = { version = "0.2.5", features = ["serde_yaml"] }

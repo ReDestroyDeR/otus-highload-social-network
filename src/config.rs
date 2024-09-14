@@ -17,11 +17,16 @@ pub struct LoggerConfig {
 
 #[derive(Config)]
 pub struct PgConfig {
+    #[config(env = "PG_HOST")]
     pub host: String,
+    #[config(env = "PG_PORT")]
     pub port: u16,
+    #[config(env="PG_DB")]
     pub database: String,
     pub schema: Option<String>,
+    #[config(env="PG_USER")]
     pub user: String,
+    #[config(env="PG_PASS")]
     pub password: String,
 }
 

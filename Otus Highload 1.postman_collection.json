@@ -1,0 +1,142 @@
+{
+	"info": {
+		"_postman_id": "a500ea4c-f6bf-41e4-b1ec-eede28ba2423",
+		"name": "Otus Highload 1",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "30710244"
+	},
+	"item": [
+		{
+			"name": "Register",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "\n{\n  \"credentials\": {\n    \"login\": \"sir_john\",\n    \"password\": \"123456\"\n  },\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"birth_date\": \"1980-02-12\",\n  \"gender\": \"Male\",\n  \"interests\": [\n    {\n      \"name\": \"Books\",\n      \"description\": \"I enjoy reading books everyday!\"\n    },\n    {\n      \"name\": \"Music\",\n      \"description\": \"I like different kinds of music\"\n    },\n    {\n      \"name\": \"Travel\",\n      \"description\": \"I fancy travel to different locations when I've got free time\"\n    }\n  ],\n  \"city\": \"N\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8080/user/register",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"user",
+						"register"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Login",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"var jsonData = pm.response.json();",
+							"",
+							"pm.collectionVariables.set(\"session_id\", jsonData.session_id);"
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"credentials\": {\n        \"login\": \"sir_john\",\n        \"password\": \"123456\"\n    }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8080/login",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"login"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get by Id",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "session-id {{session_id}}",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "\n{\n  \"credentials\": {\n    \"login\": \"sir_john\",\n    \"password\": \"123456\"\n  },\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"birth_date\": \"1980-02-12\",\n  \"gender\": \"Male\",\n  \"interests\": [\n    {\n      \"name\": \"Books\",\n      \"description\": \"I enjoy reading books everyday!\"\n    },\n    {\n      \"name\": \"Music\",\n      \"description\": \"I like different kinds of music\"\n    },\n    {\n      \"name\": \"Travel\",\n      \"description\": \"I fancy travel to different locations when I've got free time\"\n    }\n  ],\n  \"city\": \"N\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8080/user/get/:user_id",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"user",
+						"get",
+						":user_id"
+					],
+					"query": [
+						{
+							"key": "",
+							"value": null,
+							"disabled": true
+						}
+					],
+					"variable": [
+						{
+							"key": "user_id",
+							"value": "c8d850fe-a573-4f87-82cd-b4b9ccbefffa"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "session_id",
+			"value": ""
+		}
+	]
+}

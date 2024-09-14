@@ -15,6 +15,9 @@ Rust :rocket:, warp, tokio, sqlx, refinery, PostgresSQL :heart: :fire:
 
 Запросы можно отправлять силами IDE от JetBrains. [Файл с запросами](example.http)
 
+Так-же есть [Postman коллекция](Otus%20Highload%201.postman_collection.json).
+В ней автоматически реализована подстановка session_id в заголовки GET запроса
+
 ### Локальный :wrench:
 
 1. Устанавливаем Rust через [rustup](https://www.rust-lang.org/tools/install)

@@ -34,7 +34,7 @@ pub(crate) mod protocol {
 }
 
 pub(crate) mod user {
-    use chrono::NaiveDate;
+    use chrono::{DateTime, NaiveDate, Utc};
     use serde::{Deserialize, Serialize};
     use sqlx::postgres::PgTypeInfo;
     use sqlx::{Decode, Encode, FromRow, Postgres, Type};
@@ -103,6 +103,7 @@ pub(crate) mod user {
     #[derive(Serialize)]
     pub struct AuthenticationResponse {
         pub(crate) session_id: String,
+        pub(crate) expires: DateTime<Utc>,
     }
 
     impl ToReply for AuthenticationResponse {

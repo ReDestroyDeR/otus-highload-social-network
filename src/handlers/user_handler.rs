@@ -40,6 +40,7 @@ where
             .await
             .map(|session| AuthenticationResponse {
                 session_id: session.session_id,
+                expires: session.expires,
             })?;
         tx.commit().await.map_err(|err| AuthenticationError(err))?;
 

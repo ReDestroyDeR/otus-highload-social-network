@@ -57,18 +57,18 @@ async fn main() {
     let _ = migrate(&config.pg_config).await;
     let pool: Arc<PgPool> = connect_to_db(&config.pg_config).await;
 
-    let session_repository: Arc<dyn SessionRepository<Postgres>> = Arc::new(PgSessionRepository);
-    let auth_repository: Arc<dyn AuthRepository<Postgres>> = Arc::new(PgAuthRepository);
-    let idp_context: Arc<dyn IDPContext<Postgres>> = Arc::new(PgIDPContext::new(
+    let session_repository = Arc::new(PgSessionRepository);
+    let auth_repository = Arc::new(PgAuthRepository);
+    let idp_context= Arc::new(PgIDPContext::new(
         session_repository,
         auth_repository,
         &config.auth_config,
     ));
-    let auth_filter: Arc<AuthenticationFilter<Postgres>> = Arc::new(AuthenticationFilter {
+    let auth_filter = Arc::new(AuthenticationFilter {
         pool: pool.clone(),
         idp: idp_context.clone(),
     });
-    let user_repository: Arc<dyn UserRepository<Postgres>> = Arc::new(PgUserRepository);
+    let user_repository = Arc::new(PgUserRepository);
     let user_handler = Arc::new(UserHandler {
         pool: pool.clone(),
         authentication_filter: auth_filter.clone(),

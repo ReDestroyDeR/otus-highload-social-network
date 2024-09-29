@@ -10,6 +10,7 @@ use log::{error, info};
 use serde::Serialize;
 use sqlx::{Database, Error as SQLXError, Pool, Transaction};
 use std::fmt::Debug;
+use std::marker::PhantomData;
 use std::ops::Add;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -27,12 +28,20 @@ use crate::repo::auth_repository::AuthRepository;
 use crate::repo::session_repository::SessionRepository;
 
 #[derive(Clone)]
-pub struct AuthenticationFilter<DB: Database> {
+pub struct AuthenticationFilter<DB, IDP>
+where
+    DB: Database,
+    IDP: IDPContext<DB>
+{
     pub pool: Arc<Pool<DB>>,
-    pub idp: Arc<dyn IDPContext<DB>>,
+    pub idp: Arc<IDP>,
 }
 
-impl<DB: Database> AuthenticationFilter<DB> {
+impl<DB, IDP> AuthenticationFilter<DB, IDP>
+where
+    DB: Database,
+    IDP: IDPContext<DB> + Sync
+{
     pub fn with_session(
         self: Arc<Self>,
     ) -> impl Filter<Extract = (String,), Error = Rejection> + Clone {
@@ -97,7 +106,7 @@ impl Session {
 #[async_trait]
 pub trait IDPContext<DB: Database>
 where
-    Self: Send + Sync,
+    Self: Send,
 {
     async fn is_valid(&self, tx: &mut Transaction<'_, DB>, session_id: String) -> bool;
     async fn authenticate(
@@ -114,12 +123,18 @@ where
     ) -> Result<(), IDPError>;
 }
 
-pub struct PgIDPContext<DB: Database> {
-    session_repo: Arc<dyn SessionRepository<DB>>,
+pub struct PgIDPContext<DB, SessionRepo, AuthRepo>
+where
+    DB: Database,
+    SessionRepo: SessionRepository<DB>,
+    AuthRepo: AuthRepository<DB>
+{
+    session_repo: Arc<SessionRepo>,
     session_cache: DashMap<String, CachedSession>,
     session_lifetime: Duration,
     invalid_sessions: ConcurrentQueue<String>,
-    auth_repo: Arc<dyn AuthRepository<DB>>,
+    auth_repo: Arc<AuthRepo>,
+    db: PhantomData<DB>,
 }
 
 #[derive(Clone)]
@@ -134,10 +149,15 @@ impl CachedSession {
     }
 }
 
-impl<DB: Database> PgIDPContext<DB> {
+impl<DB, SessionRepo, AuthRepo> PgIDPContext<DB, SessionRepo, AuthRepo>
+where
+    DB: Database,
+    SessionRepo: SessionRepository<DB>,
+    AuthRepo: AuthRepository<DB>
+{
     pub fn new(
-        session_repo: Arc<dyn SessionRepository<DB>>,
-        auth_repo: Arc<dyn AuthRepository<DB>>,
+        session_repo: Arc<SessionRepo>,
+        auth_repo: Arc<AuthRepo>,
         auth_config: &AuthConfig,
     ) -> Self {
         Self {
@@ -146,6 +166,7 @@ impl<DB: Database> PgIDPContext<DB> {
             session_lifetime: Duration::seconds(auth_config.session_lifetime_seconds as i64),
             invalid_sessions: ConcurrentQueue::bounded(auth_config.invalid_sessions_cache_limit),
             auth_repo,
+            db: PhantomData,
         }
     }
 
@@ -201,7 +222,13 @@ impl<DB: Database> PgIDPContext<DB> {
 }
 
 #[async_trait]
-impl<DB: Database> IDPContext<DB> for PgIDPContext<DB> {
+impl<DB, SessionRepo, AuthRepo> IDPContext<DB> for PgIDPContext<DB, SessionRepo, AuthRepo>
+where
+    Self: Sync,
+    DB: Database,
+    SessionRepo: SessionRepository<DB>,
+    AuthRepo: AuthRepository<DB>
+{
     async fn is_valid(&self, tx: &mut Transaction<'_, DB>, session_id: String) -> bool {
         if Uuid::from_str(&session_id).is_err() {
             false

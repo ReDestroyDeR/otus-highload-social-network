@@ -17,16 +17,24 @@ use crate::handlers::RestHandler;
 use crate::repo::user_repository::UserRepository;
 
 #[derive(Clone)]
-pub struct UserHandler<DB: Database> {
+pub struct UserHandler<DB, UserRepo, IDP>
+where
+    DB: Database,
+    UserRepo: UserRepository<DB>,
+    IDP: IDPContext<DB>
+{
     pub pool: Arc<Pool<DB>>,
-    pub repository: Arc<dyn UserRepository<DB>>,
-    pub idp_context: Arc<dyn IDPContext<DB>>,
-    pub authentication_filter: Arc<AuthenticationFilter<DB>>,
+    pub repository: Arc<UserRepo>,
+    pub idp_context: Arc<IDP>,
+    pub authentication_filter: Arc<AuthenticationFilter<DB, IDP>>,
 }
 
-impl<DB: Database> UserHandler<DB>
+impl<DB, UserRepo, IDP> UserHandler<DB, UserRepo, IDP>
 where
     Self: Send + Sync,
+    DB: Database,
+    UserRepo: UserRepository<DB>,
+    IDP: IDPContext<DB>
 {
     async fn login(&self, credentials: &Credentials) -> Result<AuthenticationResponse, IDPError> {
         let mut tx = self
@@ -94,7 +102,12 @@ where
     }
 }
 
-impl<DB: Database> RestHandler for Arc<UserHandler<DB>> {
+impl<DB, UserRepo, IDP> RestHandler for Arc<UserHandler<DB, UserRepo, IDP>>
+where
+    DB: Database,
+    UserRepo: UserRepository<DB>,
+    IDP: IDPContext<DB> + Sync
+{
     fn routes(self) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
         let login = {
             let handler = self.clone();

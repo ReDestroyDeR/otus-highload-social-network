@@ -8,12 +8,12 @@ use dashmap::mapref::one::Ref as DashMapRef;
 use dashmap::DashMap;
 use log::{error, info};
 use serde::Serialize;
-use sqlx::{Database, Error as SQLXError, Pool, Transaction};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::Add;
 use std::str::FromStr;
 use std::sync::Arc;
+use serde::ser::StdError;
 use thiserror::Error;
 use uuid::Uuid;
 use warp::http::header::AUTHORIZATION;
@@ -24,23 +24,24 @@ use warp::{reject, reply, Filter, Rejection, Reply};
 use crate::domain::protocol::ToReply;
 use crate::domain::user::{Credentials, User};
 use crate::extensions::Unit;
+use crate::pool::{DatabasePool, DbErrorOps};
 use crate::repo::auth_repository::AuthRepository;
 use crate::repo::session_repository::SessionRepository;
 
 #[derive(Clone)]
-pub struct AuthenticationFilter<DB, IDP>
+pub struct AuthenticationFilter<Pool, IDP>
 where
-    DB: Database,
-    IDP: IDPContext<DB>
+    Pool: DatabasePool,
+    IDP: IDPContext<Pool>,
 {
-    pub pool: Arc<Pool<DB>>,
+    pub pool: Arc<Pool>,
     pub idp: Arc<IDP>,
 }
 
-impl<DB, IDP> AuthenticationFilter<DB, IDP>
+impl<IDP, Pool> AuthenticationFilter<Pool, IDP>
 where
-    DB: Database,
-    IDP: IDPContext<DB> + Sync
+    Pool: DatabasePool,
+    IDP: IDPContext<Pool> + Sync,
 {
     pub fn with_session(
         self: Arc<Self>,
@@ -55,7 +56,7 @@ where
                     })
                     .ok_or(reject::custom(NoSessionIdHeader))?;
 
-                match inner_self.pool.begin().await {
+                match inner_self.pool.begin_tx().await {
                     Err(err) => {
                         error!(err:err = err; "Failed obtaining transaction for authentication");
                         Err(reject::custom(InternalError))
@@ -104,37 +105,38 @@ impl Session {
 }
 
 #[async_trait]
-pub trait IDPContext<DB: Database>
+pub trait IDPContext<Pool>
 where
-    Self: Send,
+    Self: Send + Sync,
+    Pool: DatabasePool
 {
-    async fn is_valid(&self, tx: &mut Transaction<'_, DB>, session_id: String) -> bool;
+    async fn is_valid(&self, tx: &mut Pool::Tx, session_id: String) -> bool;
     async fn authenticate(
         &self,
-        tx: &mut Transaction<'_, DB>,
+        tx: &mut Pool::Tx,
         credentials: &Credentials,
-    ) -> Result<Session, IDPError>;
+    ) -> Result<Session, IDPError<Pool::Err>>;
     async fn add_user(
         &self,
-        tx: &mut Transaction<'_, DB>,
+        tx: &mut Pool::Tx,
         login: &str,
         password: &str,
         user: &User,
-    ) -> Result<(), IDPError>;
+    ) -> Result<(), IDPError<Pool::Err>>;
 }
 
-pub struct PgIDPContext<DB, SessionRepo, AuthRepo>
+pub struct PgIDPContext<Pool, SessionRepo, AuthRepo>
 where
-    DB: Database,
-    SessionRepo: SessionRepository<DB>,
-    AuthRepo: AuthRepository<DB>
+    Pool: DatabasePool,
+    SessionRepo: SessionRepository<Pool>,
+    AuthRepo: AuthRepository<Pool>,
 {
     session_repo: Arc<SessionRepo>,
     session_cache: DashMap<String, CachedSession>,
     session_lifetime: Duration,
     invalid_sessions: ConcurrentQueue<String>,
     auth_repo: Arc<AuthRepo>,
-    db: PhantomData<DB>,
+    pool: PhantomData<Pool>,
 }
 
 #[derive(Clone)]
@@ -149,11 +151,11 @@ impl CachedSession {
     }
 }
 
-impl<DB, SessionRepo, AuthRepo> PgIDPContext<DB, SessionRepo, AuthRepo>
+impl<Pool, SessionRepo, AuthRepo> PgIDPContext<Pool, SessionRepo, AuthRepo>
 where
-    DB: Database,
-    SessionRepo: SessionRepository<DB>,
-    AuthRepo: AuthRepository<DB>
+    Pool: DatabasePool,
+    SessionRepo: SessionRepository<Pool>,
+    AuthRepo: AuthRepository<Pool>,
 {
     pub fn new(
         session_repo: Arc<SessionRepo>,
@@ -166,7 +168,7 @@ where
             session_lifetime: Duration::seconds(auth_config.session_lifetime_seconds as i64),
             invalid_sessions: ConcurrentQueue::bounded(auth_config.invalid_sessions_cache_limit),
             auth_repo,
-            db: PhantomData,
+            pool: PhantomData,
         }
     }
 
@@ -222,14 +224,14 @@ where
 }
 
 #[async_trait]
-impl<DB, SessionRepo, AuthRepo> IDPContext<DB> for PgIDPContext<DB, SessionRepo, AuthRepo>
+impl<Pool, SessionRepo, AuthRepo> IDPContext<Pool> for PgIDPContext<Pool, SessionRepo, AuthRepo>
 where
     Self: Sync,
-    DB: Database,
-    SessionRepo: SessionRepository<DB>,
-    AuthRepo: AuthRepository<DB>
+    Pool: DatabasePool,
+    SessionRepo: SessionRepository<Pool>,
+    AuthRepo: AuthRepository<Pool>,
 {
-    async fn is_valid(&self, tx: &mut Transaction<'_, DB>, session_id: String) -> bool {
+    async fn is_valid(&self, tx: &mut Pool::Tx, session_id: String) -> bool {
         if Uuid::from_str(&session_id).is_err() {
             false
         } else if let Some(cached) = self.is_valid_session_in_cache(&session_id) {
@@ -261,9 +263,9 @@ where
 
     async fn authenticate(
         &self,
-        tx: &mut Transaction<'_, DB>,
+        tx: &mut Pool::Tx,
         credentials: &Credentials,
-    ) -> Result<Session, IDPError> {
+    ) -> Result<Session, IDPError<Pool::Err>> {
         let db_credentials = self
             .auth_repo
             .find(tx, &credentials.login)
@@ -293,11 +295,11 @@ where
 
     async fn add_user(
         &self,
-        tx: &mut Transaction<'_, DB>,
+        tx: &mut Pool::Tx,
         login: &str,
         password: &str,
         user: &User,
-    ) -> Result<(), IDPError> {
+    ) -> Result<(), IDPError<Pool::Err>> {
         let encrypted_password = bcrypt::hash(password, bcrypt::DEFAULT_COST)
             .map_err(|err| IDPError::CryptoError(err))?;
 
@@ -312,7 +314,7 @@ where
             )
             .await
             .map_err(|err| match err {
-                SQLXError::Database(error) if error.is_unique_violation() => {
+                error if error.is_unique_violation() => {
                     IDPError::UsernameTaken
                 }
                 _ => IDPError::RegistrationError(err),
@@ -322,22 +324,22 @@ where
 }
 
 #[derive(Error, Serialize, Debug)]
-pub enum IDPError {
+pub enum IDPError<PoolErr: Send + StdError + Sync + 'static> {
     #[error("Incorrect username or password")]
     AuthenticationFailed,
     #[error("Requested username is occupied")]
     UsernameTaken,
     #[error("Authentication error")]
-    AuthenticationError(#[serde(skip)] SQLXError),
+    AuthenticationError(#[serde(skip)] PoolErr),
     #[error("Registration error")]
-    RegistrationError(#[serde(skip)] SQLXError),
+    RegistrationError(#[serde(skip)] PoolErr),
     #[error("Cryptographic error")]
     CryptoError(#[serde(skip)] BcryptError),
 }
 
-impl Reject for IDPError {}
+impl<T: Debug + Send + StdError + Sync + 'static> Reject for IDPError<T> {}
 
-impl ToReply for IDPError {
+impl<T: Send + StdError + Sync + 'static> ToReply for IDPError<T> {
     fn into_reply(self) -> impl Reply {
         reply::with_status(reply::json(&self), StatusCode::UNAUTHORIZED)
     }

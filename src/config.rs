@@ -21,12 +21,12 @@ pub struct PgConfig {
     pub host: String,
     #[config(env = "PG_PORT")]
     pub port: u16,
-    #[config(env="PG_DB")]
+    #[config(env = "PG_DB")]
     pub database: String,
     pub schema: Option<String>,
-    #[config(env="PG_USER")]
+    #[config(env = "PG_USER")]
     pub user: String,
-    #[config(env="PG_PASS")]
+    #[config(env = "PG_PASS")]
     pub password: String,
 }
 

@@ -1,26 +1,28 @@
 use crate::domain::user::{Interest, User};
 use async_trait::async_trait;
 use log::warn;
-use sqlx::{Database, Error, Postgres, Transaction};
+use sqlx::{Error, PgPool, Postgres, Transaction};
 use tap::TapFallible;
 use uuid::Uuid;
+use crate::pool::DatabasePool;
 
 #[async_trait]
-pub trait UserRepository<DB: Database>
+pub trait UserRepository<Pool>
 where
     Self: Send + Sync,
+    Pool: DatabasePool,
 {
-    async fn find(&self, tx: &mut Transaction<'_, DB>, id: Uuid) -> Option<User>;
+    async fn find(&self, tx: &mut Pool::Tx, id: Uuid) -> Option<User>;
 
-    async fn save(&self, tx: &mut Transaction<'_, DB>, user: User) -> Result<(), Error>;
+    async fn save(&self, tx: &mut Pool::Tx, user: User) -> Result<(), Pool::Err>;
 }
 
 #[derive(Clone)]
 pub(crate) struct PgUserRepository;
 
 #[async_trait]
-impl UserRepository<Postgres> for PgUserRepository {
-    async fn find(&self, tx: &mut Transaction<'_, Postgres>, id: Uuid) -> Option<User> {
+impl UserRepository<PgPool> for PgUserRepository {
+    async fn find(&self, tx: &mut Transaction<'static, Postgres>, id: Uuid) -> Option<User> {
         sqlx::query_as!(
             User,
             r#"
@@ -51,7 +53,7 @@ impl UserRepository<Postgres> for PgUserRepository {
             .ok()
     }
 
-    async fn save(&self, tx: &mut Transaction<'_, Postgres>, user: User) -> Result<(), Error> {
+    async fn save(&self, tx: &mut Transaction<'static, Postgres>, user: User) -> Result<(), Error> {
         let _ = sqlx::query!(
             r#"
             INSERT INTO users (

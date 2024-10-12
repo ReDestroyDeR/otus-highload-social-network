@@ -4,7 +4,6 @@ use std::sync::Arc;
 use crate::auth::IDPError::AuthenticationError;
 use crate::auth::{AuthenticationFilter, IDPContext, IDPError};
 use crate::domain::protocol::ToResponse;
-use sqlx::{Database, Pool};
 use tap::TapFallible;
 use uuid::Uuid;
 use warp::filters::method;
@@ -14,32 +13,33 @@ use crate::domain::user::{
     AuthenticationRequest, AuthenticationResponse, Credentials, RegistrationRequest, User,
 };
 use crate::handlers::RestHandler;
+use crate::pool::{DatabasePool, TransactionOps};
 use crate::repo::user_repository::UserRepository;
 
 #[derive(Clone)]
-pub struct UserHandler<DB, UserRepo, IDP>
+pub struct UserHandler<UserRepo, IDP, Pool>
 where
-    DB: Database,
-    UserRepo: UserRepository<DB>,
-    IDP: IDPContext<DB>
+    UserRepo: UserRepository<Pool>,
+    IDP: IDPContext<Pool>,
+    Pool: DatabasePool,
 {
-    pub pool: Arc<Pool<DB>>,
+    pub pool: Arc<Pool>,
     pub repository: Arc<UserRepo>,
     pub idp_context: Arc<IDP>,
-    pub authentication_filter: Arc<AuthenticationFilter<DB, IDP>>,
+    pub authentication_filter: Arc<AuthenticationFilter<Pool, IDP>>,
 }
 
-impl<DB, UserRepo, IDP> UserHandler<DB, UserRepo, IDP>
+impl<UserRepo, IDP, Pool> UserHandler<UserRepo, IDP, Pool>
 where
     Self: Send + Sync,
-    DB: Database,
-    UserRepo: UserRepository<DB>,
-    IDP: IDPContext<DB>
+    Pool: DatabasePool,
+    UserRepo: UserRepository<Pool>,
+    IDP: IDPContext<Pool>,
 {
-    async fn login(&self, credentials: &Credentials) -> Result<AuthenticationResponse, IDPError> {
+    async fn login(&self, credentials: &Credentials) -> Result<AuthenticationResponse, IDPError<Pool::Err>> {
         let mut tx = self
             .pool
-            .begin()
+            .begin_tx()
             .await
             .map_err(|err| AuthenticationError(err))?;
         let response = self
@@ -55,11 +55,11 @@ where
         Ok(response)
     }
 
-    async fn register(&self, request: RegistrationRequest) -> Result<User, IDPError> {
+    async fn register(&self, request: RegistrationRequest) -> Result<User, IDPError<Pool::Err>> {
         let credentials = request.credentials;
         let mut tx = self
             .pool
-            .begin()
+            .begin_tx()
             .await
             .map_err(|err| IDPError::RegistrationError(err))?;
 
@@ -92,7 +92,7 @@ where
     }
 
     async fn get(&self, user_id: Uuid) -> Option<User> {
-        let mut tx = self.pool.begin().await.ok()?;
+        let mut tx = self.pool.begin_tx().await.ok()?;
         let user = self.repository.find(&mut tx, user_id).await;
         let _ = tx
             .commit()
@@ -102,11 +102,11 @@ where
     }
 }
 
-impl<DB, UserRepo, IDP> RestHandler for Arc<UserHandler<DB, UserRepo, IDP>>
+impl<UserRepo, IDP, Pool> RestHandler for Arc<UserHandler<UserRepo, IDP, Pool>>
 where
-    DB: Database,
-    UserRepo: UserRepository<DB>,
-    IDP: IDPContext<DB> + Sync
+    UserRepo: UserRepository<Pool>,
+    IDP: IDPContext<Pool>,
+    Pool: DatabasePool
 {
     fn routes(self) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
         let login = {

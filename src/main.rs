@@ -8,25 +8,26 @@ use log::{error, info};
 use refinery::config::{Config as RefineryCfg, ConfigDbType};
 use refinery::embed_migrations;
 use sqlx::postgres::PgConnectOptions;
-use sqlx::{PgPool, Postgres};
+use sqlx::{PgPool};
 use structured_logger::async_json::new_writer;
 use structured_logger::Builder;
 use tap::TapFallible;
 use warp::Filter;
 
-use crate::auth::{AuthenticationFilter, IDPContext, PgIDPContext};
+use crate::auth::{AuthenticationFilter, PgIDPContext};
 use crate::config::{ApplicationConfig, LoggerConfig, PgConfig};
 use crate::handlers::user_handler::UserHandler;
 use crate::handlers::RestHandler;
-use crate::repo::auth_repository::{AuthRepository, PgAuthRepository};
-use crate::repo::session_repository::{PgSessionRepository, SessionRepository};
-use crate::repo::user_repository::{PgUserRepository, UserRepository};
+use crate::repo::auth_repository::{PgAuthRepository};
+use crate::repo::session_repository::{PgSessionRepository};
+use crate::repo::user_repository::{PgUserRepository};
 
 mod auth;
 mod config;
 pub(crate) mod domain;
 mod extensions;
 mod handlers;
+pub(crate) mod pool;
 pub(crate) mod repo;
 
 const CONFIG_ENV: &str = "CONFIG";
@@ -42,24 +43,23 @@ async fn main() {
         .get(CONFIG_ENV)
         .map(|file_name| file_name.as_str())
         .unwrap_or(DEFAULT_CONFIG_PATH);
-    let config: ApplicationConfig =
-        ApplicationConfig::builder()
-            .file(config_file_path)
-            .env()
-            .load()
-            .expect(&format!(
-                "Failed to load application config from {}",
-                config_file_path
-            ));
+    let config: ApplicationConfig = ApplicationConfig::builder()
+        .file(config_file_path)
+        .env()
+        .load()
+        .expect(&format!(
+            "Failed to load application config from {}",
+            config_file_path
+        ));
 
     initialize_logger(config.logger_config);
 
     let _ = migrate(&config.pg_config).await;
-    let pool: Arc<PgPool> = connect_to_db(&config.pg_config).await;
+    let pool = connect_to_db(&config.pg_config).await;
 
     let session_repository = Arc::new(PgSessionRepository);
     let auth_repository = Arc::new(PgAuthRepository);
-    let idp_context= Arc::new(PgIDPContext::new(
+    let idp_context = Arc::new(PgIDPContext::new(
         session_repository,
         auth_repository,
         &config.auth_config,
@@ -78,7 +78,7 @@ async fn main() {
 
     let routes = user_handler
         .routes()
-        .recover(handlers::rejection_handler::handle_rejections);
+        .recover(handlers::rejection_handler::handle_rejections::<PgPool>);
 
     warp::serve(routes).run((Ipv4Addr::UNSPECIFIED, 8080)).await;
 }

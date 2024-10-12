@@ -2,30 +2,32 @@ use crate::domain::user::{Credentials, User};
 use crate::extensions::Unit;
 use async_trait::async_trait;
 use log::error;
-use sqlx::{Database, Error, Postgres, Transaction};
+use sqlx::{Error, PgPool, Postgres, Transaction};
 use tap::TapFallible;
 use uuid::Uuid;
+use crate::pool::DatabasePool;
 
 #[async_trait]
-pub trait AuthRepository<DB: Database>
+pub trait AuthRepository<Pool>
 where
     Self: Send + Sync,
+    Pool: DatabasePool,
 {
-    async fn find(&self, tx: &mut Transaction<'_, DB>, login: &str) -> Option<Credentials>;
+    async fn find(&self, tx: &mut Pool::Tx, login: &str) -> Option<Credentials>;
 
     async fn save(
         &self,
-        tx: &mut Transaction<'_, DB>,
+        tx: &mut Pool::Tx,
         credentials: &Credentials,
         user: &User,
-    ) -> Result<(), Error>;
+    ) -> Result<(), Pool::Err>;
 }
 
 pub struct PgAuthRepository;
 
 #[async_trait]
-impl AuthRepository<Postgres> for PgAuthRepository {
-    async fn find(&self, tx: &mut Transaction<'_, Postgres>, login: &str) -> Option<Credentials> {
+impl AuthRepository<PgPool> for PgAuthRepository {
+    async fn find(&self, tx: &mut Transaction<'static, Postgres>, login: &str) -> Option<Credentials> {
         sqlx::query_as!(
             Credentials,
             "SELECT auth.login, auth.password FROM auth WHERE auth.login = $1",
@@ -38,7 +40,7 @@ impl AuthRepository<Postgres> for PgAuthRepository {
 
     async fn save(
         &self,
-        tx: &mut Transaction<'_, Postgres>,
+        tx: &mut Transaction<'static, Postgres>,
         credentials: &Credentials,
         user: &User,
     ) -> Result<(), Error> {

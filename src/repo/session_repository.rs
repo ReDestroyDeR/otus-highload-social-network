@@ -3,30 +3,32 @@ use crate::extensions::Unit;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use log::warn;
-use sqlx::{Database, Error, Postgres, Transaction};
+use sqlx::{Error, PgPool, Postgres, Transaction};
 use tap::TapFallible;
+use crate::pool::DatabasePool;
 
 #[async_trait]
-pub trait SessionRepository<DB: Database>
+pub trait SessionRepository<Pool>
 where
     Self: Send + Sync,
+    Pool: DatabasePool,
 {
     async fn not_expired(
         &self,
-        tx: &mut Transaction<'_, DB>,
+        tx: &mut Pool::Tx,
         session_id: &str,
     ) -> Option<DateTime<Utc>>;
 
-    async fn save(&self, tx: &mut Transaction<'_, DB>, session: &Session) -> Result<(), Error>;
+    async fn save(&self, tx: &mut Pool::Tx, session: &Session) -> Result<(), Pool::Err>;
 }
 
 pub struct PgSessionRepository;
 
 #[async_trait]
-impl SessionRepository<Postgres> for PgSessionRepository {
+impl SessionRepository<PgPool> for PgSessionRepository {
     async fn not_expired(
         &self,
-        tx: &mut Transaction<'_, Postgres>,
+        tx: &mut Transaction<'static, Postgres>,
         session_id: &str,
     ) -> Option<DateTime<Utc>> {
         sqlx::query_scalar!(
@@ -41,7 +43,7 @@ impl SessionRepository<Postgres> for PgSessionRepository {
 
     async fn save(
         &self,
-        tx: &mut Transaction<'_, Postgres>,
+        tx: &mut Transaction<'static, Postgres>,
         session: &Session,
     ) -> Result<(), Error> {
         sqlx::query!(
